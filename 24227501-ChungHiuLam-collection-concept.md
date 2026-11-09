@@ -20,4 +20,4 @@ For "certainty", a 5 is the full name I can prove, and a 1 means names that I ca
 
 The situation around the name was never held even in my mind. Our faces. Her reason. Our jokes. My regret. My acceptance. My surprise.
 
-A file can keep 小琳, but it cannot keep the fact that only my mother says it, or the day a handwritten 曉琳 arrived. 
+A file can keep 小琳, but it cannot keep the fact that only my mother says it, or the day a handwritten 曉琳 arrived.
