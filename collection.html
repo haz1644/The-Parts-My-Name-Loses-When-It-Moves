@@ -1,0 +1,2115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
+  <title>Tiny Collection of (My) Names</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      min-height: 100vh;
+      background: #f4f1ea;
+      font-family: Georgia, "Times New Roman", serif;
+      color: #2c2a26;
+      padding: 40px 24px;
+    }
+
+    /* The rain of letters: a fixed layer the size of the window, painted over
+       the cards but under the toolbar, so the two filters stay on top of the
+       alphabet and every card stays clickable through it. The letters keep
+       coming down until the pile they build has climbed to the top of the
+       window. (Give this layer z-index 0 and the three content rules below
+       z-index 1 instead, if the letters should be kept behind the paper rather
+       than over it.) */
+    .alphabet-rain {
+      position: fixed;
+      inset: 0;
+      z-index: 3;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+    }
+
+    /* The page's own things are one layer, under that rain. */
+    .collection-header,
+    .grid,
+    .grid-empty {
+      position: relative;
+      z-index: 1;
+    }
+
+    .collection-header {
+      max-width: 1400px;
+      margin: 0 auto 40px;
+      text-align: center;
+    }
+
+    .collection-header h1 {
+      font-size: 32px;
+      font-weight: 400;
+      letter-spacing: 0.02em;
+      margin-bottom: 8px;
+    }
+
+    .collection-header p {
+      font-size: 14px;
+      color: #8a8478;
+    }
+
+    .load-status {
+      margin-top: 10px;
+      font-size: 12px;
+      letter-spacing: 0.04em;
+      color: #8a8478;
+      min-height: 1.2em;
+    }
+
+    .load-status.is-ok {
+      color: #6e6a62;
+    }
+
+    .load-status.is-error {
+      color: #a4442f;
+    }
+
+    /* The toolbar rides at the top of the window while the cards scroll under
+       it, so the two filters and the reload button are always at hand. Its
+       negative margins reach back over the page padding, which lets the band
+       run edge to edge without needing a wrapper around it. */
+    .toolbar {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      margin: -40px -24px 0;
+      padding: 12px 24px;
+      background: #f4f1ea;
+      border-bottom: 1px solid #cfc8b8;
+      box-shadow: 0 6px 18px rgba(40, 32, 20, 0.06);
+    }
+
+    .toolbar-inner {
+      max-width: 1400px;
+      margin: 0 auto;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 10px 22px;
+    }
+
+    .toolbar .filter {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .toolbar .filter-label {
+      font-size: 10px;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: #6e6a62;
+    }
+
+    .toolbar select {
+      padding: 6px 10px;
+      border: 1px solid #2c2a26;
+      border-radius: 0;
+      background: #fffdf8;
+      color: #2c2a26;
+      font-family: inherit;
+      font-size: 12px;
+      letter-spacing: 0.06em;
+      cursor: pointer;
+    }
+
+    .toolbar select:focus {
+      outline: 1px solid #2c2a26;
+      outline-offset: 1px;
+    }
+
+    /* How much of the file the filters are letting through. The status line in
+       the header says the same thing in words, so that live region is left to
+       speak and this stays a glance for the eye. */
+    .toolbar .toolbar-count {
+      margin-left: auto;
+      font-size: 11px;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: #6e6a62;
+    }
+
+    .toolbar button.reload {
+      width: auto;
+      margin-top: 0;
+      padding: 8px 18px;
+      background: transparent;
+      color: #2c2a26;
+      font-size: 11px;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+    }
+
+    .toolbar button.reload:hover {
+      background: #2c2a26;
+      color: #fffdf8;
+    }
+
+    .grid {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      align-items: flex-start;
+      gap: 24px;
+      margin: 0 auto;
+    }
+
+    /* A card the filters are not showing keeps everything it was: its flipped
+       side, its editor contents, its place in the file. Only the layout is
+       asked to skip it. */
+    .grid .card.is-filtered {
+      display: none;
+    }
+
+    /* Stands in for the cards when the filters match none of them. */
+    .grid-empty {
+      max-width: 1400px;
+      margin: 0 auto;
+      text-align: center;
+      font-family: "Courier New", Courier, monospace;
+      font-size: 12px;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: #8a8478;
+    }
+
+    .grid-empty[hidden] {
+      display: none;
+    }
+
+    .card {
+      flex: 0 0 460px;
+      max-width: 100%;
+      height: 520px;
+      perspective: 1200px;
+    }
+
+    .inner {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      transition: transform 0.8s;
+      transform-style: preserve-3d;
+    }
+
+    .card.flipped .inner {
+      transform: rotateY(180deg);
+    }
+
+    .front,
+    .back {
+      position: absolute;
+      inset: 0;
+      backface-visibility: hidden;
+      -webkit-backface-visibility: hidden;
+      background: #fffdf8;
+      border-radius: 4px;
+      box-shadow: 0 12px 32px rgba(40, 32, 20, 0.12);
+    }
+
+    .front {
+      padding: 28px;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .back {
+      transform: rotateY(180deg);
+      padding: 22px;
+      font-family: "Courier New", Courier, monospace;
+    }
+
+    .specimen {
+      height: 100%;
+      border: 1px solid #2c2a26;
+      padding: 24px 22px;
+      display: flex;
+      flex-direction: column;
+      filter: none;
+      opacity: 1;
+    }
+
+    .catalog {
+      font-size: 12px;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      border-bottom: 1px solid #2c2a26;
+      padding-bottom: 12px;
+      margin-bottom: 20px;
+      filter: none;
+      opacity: 1;
+      transition: none;
+    }
+
+    .field {
+      margin-bottom: 14px;
+    }
+
+    .field dt {
+      font-size: 10px;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: #6e6a62;
+      margin-bottom: 6px;
+      filter: none;
+      opacity: 1;
+      transition: none;
+    }
+
+    .field dd.value {
+      font-size: 14px;
+      line-height: 1.45;
+      letter-spacing: 0;
+      opacity: 1;
+      filter: blur(0);
+      overflow: hidden;
+      min-height: 1.45em;
+      transition: filter 15s linear, opacity 15s linear, letter-spacing 15s linear;
+    }
+
+    .card.flipped .field dd.value {
+      opacity: 0;
+      filter: blur(8px);
+      letter-spacing: 0.55em;
+    }
+
+    .field dd.value.last {
+      transition: filter 2s ease-in 13s, opacity 2s ease-in 13s, letter-spacing 2s ease-in 13s;
+    }
+
+    .front-media {
+      width: 100%;
+      height: 280px;
+      background: #d9d4c8;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+    }
+
+    .front-media img,
+    .front-media video {
+      width: 100%;
+      height: 100%;
+      display: block;
+      object-fit: cover;
+    }
+
+    .front-media.video {
+      background: #2c2a26;
+    }
+
+    .front-media.video video {
+      object-fit: contain;
+    }
+
+    .front-media.audio {
+      background: #efece4;
+      flex-direction: column;
+      gap: 14px;
+      padding: 0 22px;
+    }
+
+    .front-media.audio audio {
+      width: 100%;
+      display: block;
+    }
+
+    .front-media.text,
+    .front-media.pdf {
+      background: #efece4;
+      flex-direction: column;
+      align-items: stretch;
+      justify-content: flex-start;
+      gap: 12px;
+      padding: 18px;
+    }
+
+    .front-media.text .media-label,
+    .front-media.pdf .media-label {
+      flex: 0 0 auto;
+      text-align: center;
+    }
+
+    .front-media.text .media-text {
+      flex: 1 1 auto;
+      min-height: 0;
+      width: 100%;
+      overflow: auto;
+      font-family: "Courier New", Courier, monospace;
+      font-size: 12px;
+      line-height: 1.6;
+      color: #3d3a34;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+    }
+
+    .front-media.pdf iframe {
+      flex: 1 1 auto;
+      min-height: 0;
+      width: 100%;
+      border: 0;
+      background: #fffdf8;
+    }
+
+    .front-media.text .media-open,
+    .front-media.pdf .media-open {
+      flex: 0 0 auto;
+      font-size: 10px;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: #6e6a62;
+      text-align: center;
+      text-decoration: none;
+    }
+
+    .front-media.text .media-open:hover,
+    .front-media.pdf .media-open:hover {
+      color: #2c2a26;
+      text-decoration: underline;
+    }
+
+    /* Records 17 and 15 are interactive. Record 17 is a live coder (script,
+       Run button, terminal) and record 15 is a converter (the name in braille
+       and a Convert button). Both boxes are 50px taller than the others and
+       the cards are unchanged in height, so the grid still reads as one
+       collection. */
+    .front-media.python,
+    .front-media.converter {
+      height: 330px;
+      background: #efece4;
+      flex-direction: column;
+      align-items: stretch;
+      justify-content: flex-start;
+      gap: 8px;
+      padding: 14px;
+    }
+
+    .front-media.python .media-label,
+    .front-media.converter .media-label {
+      flex: 0 0 auto;
+      text-align: center;
+    }
+
+    .front-media.python .code-editor {
+      flex: 1 1 0;
+      min-height: 0;
+      width: 100%;
+      padding: 10px;
+      border: 1px solid #cfc8b8;
+      background: #fffdf8;
+      color: #3d3a34;
+      font-family: "Courier New", Courier, monospace;
+      font-size: 12px;
+      line-height: 1.55;
+      white-space: pre;
+      overflow: auto;
+      resize: none;
+      tab-size: 4;
+    }
+
+    .front-media.python .code-editor:focus {
+      outline: 1px solid #2c2a26;
+    }
+
+    .front-media.python .code-console,
+    .front-media.converter .code-console {
+      flex: 0 0 auto;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+    }
+
+    .front-media.python .code-console button,
+    .front-media.converter .code-console button {
+      width: auto;
+      margin-top: 0;
+      padding: 6px 16px;
+      font-size: 11px;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+    }
+
+    .front-media.python .code-console button[disabled],
+    .front-media.converter .code-console button[disabled] {
+      background: #8a8478;
+      cursor: default;
+    }
+
+    .front-media.python .run-state,
+    .front-media.converter .run-state {
+      font-size: 10px;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: #6e6a62;
+      text-align: right;
+    }
+
+    .front-media.python .terminal {
+      flex: 1 1 0;
+      min-height: 0;
+      width: 100%;
+      margin: 0;
+      padding: 10px;
+      border: 1px solid #2c2a26;
+      background: #2c2a26;
+      color: #efece4;
+      font-family: "Courier New", Courier, monospace;
+      font-size: 11px;
+      line-height: 1.55;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+      overflow: auto;
+    }
+
+    .front-media.python .terminal-prompt {
+      color: #8f8a7e;
+    }
+
+    .front-media.python .terminal-error {
+      color: #e0a795;
+    }
+
+    /* Record 15: the box opens on the dots and, once converted, holds the name
+       in ordinary letters instead. This box has no terminal, so the screen is
+       the only thing that grows and it keeps the room one would have taken. */
+    .front-media.converter .braille-screen {
+      flex: 1 1 0;
+      min-height: 0;
+      width: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 10px;
+      border: 1px solid #cfc8b8;
+      background: #fffdf8;
+      color: #3d3a34;
+      text-align: center;
+      overflow: auto;
+    }
+
+    /* A text font carries no braille cells, so the symbol fonts a system keeps
+       for them are asked for first and the reading stays available to anything
+       that has no dots at all. */
+    .front-media.converter .braille-dots {
+      font-family: "Segoe UI Symbol", "Apple Braille", "Apple Symbols",
+        "Noto Sans Symbols 2", "Noto Sans Symbols", "DejaVu Sans", monospace;
+      font-size: 24px;
+      line-height: 1.5;
+      letter-spacing: 0.12em;
+      overflow-wrap: anywhere;
+    }
+
+    .front-media.converter .braille-reading {
+      font-family: Georgia, "Times New Roman", serif;
+      font-size: 23px;
+      line-height: 1.4;
+      letter-spacing: 0.02em;
+      overflow-wrap: anywhere;
+    }
+
+    .media-label {
+      font-size: 10px;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: #6e6a62;
+    }
+
+    .front-media.is-missing {
+      background: #d9d4c8;
+    }
+
+    .media-missing-note {
+      display: none;
+      font-family: "Courier New", Courier, monospace;
+      font-size: 11px;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: #6e6a62;
+      text-align: center;
+    }
+
+    .front-media.is-missing .media-missing-note {
+      display: block;
+    }
+
+    .front-media.is-missing img,
+    .front-media.is-missing audio,
+    .front-media.is-missing video,
+    .front-media.is-missing iframe,
+    .front-media.is-missing .media-text,
+    .front-media.is-missing .media-open,
+    .front-media.is-missing .braille-screen,
+    .front-media.is-missing .code-editor,
+    .front-media.is-missing .code-console,
+    .front-media.is-missing .terminal,
+    .front-media.is-missing .media-label {
+      display: none;
+    }
+
+    h1 {
+      margin-top: 22px;
+      font-size: 22px;
+      font-weight: 400;
+      letter-spacing: 0.02em;
+    }
+
+    .meta {
+      margin-top: 8px;
+      font-size: 13px;
+      color: #8a8478;
+    }
+
+    button {
+      margin-top: auto;
+      width: 100%;
+      padding: 12px 16px;
+      border: 1px solid #2c2a26;
+      background: #2c2a26;
+      color: #fffdf8;
+      font-family: inherit;
+      font-size: 14px;
+      letter-spacing: 0.06em;
+      cursor: pointer;
+    }
+
+    button:hover {
+      background: #3d3a34;
+    }
+  </style>
+</head>
+<body>
+  <!-- The alphabet falls down this layer and gathers on the floor of the
+       window, letter resting on letter, until the pile has climbed to the top
+       of the page: the layer is painted over the cards but under the toolbar,
+       and it is decoration, so it takes no clicks and says nothing to a screen
+       reader. -->
+  <canvas class="alphabet-rain" id="alphabet-rain" aria-hidden="true"></canvas>
+  <!-- The bar stays at the top while the collection scrolls, so the type
+       filter, the title filter and the reload button are always within reach.
+       The type choices are written by the script, because they are the kinds
+       of media the file actually holds; the title choices are fixed. -->
+  <nav class="toolbar" aria-label="Filter the collection and reload its data">
+    <div class="toolbar-inner">
+      <label class="filter">
+        <span class="filter-label">Type</span>
+        <select id="filter-type">
+          <option value="all">all types</option>
+        </select>
+      </label>
+      <label class="filter">
+        <span class="filter-label">Title</span>
+        <select id="filter-title">
+          <option value="all">all titles</option>
+          <option value="name">鍾曉琳</option>
+          <option value="others">others</option>
+        </select>
+      </label>
+      <span class="toolbar-count" id="filter-count" aria-hidden="true"></span>
+      <button type="button" class="reload" id="reload-data">Reload data</button>
+    </div>
+  </nav>
+
+  <header class="collection-header">
+    <h1>The Parts My Name Loses When It Moves</h1>
+    <p>Click "Archive This" to archive a card</p>
+    <p class="load-status" id="load-status" role="status" aria-live="polite"></p>
+  </header>
+
+  <div class="grid" id="grid"></div>
+  <p class="grid-empty" id="grid-empty" hidden>No records match these filters.</p>
+
+  <script>
+    const grid = document.getElementById("grid");
+    const status = document.getElementById("load-status");
+    const reloadButton = document.getElementById("reload-data");
+    const typeFilter = document.getElementById("filter-type");
+    const titleFilter = document.getElementById("filter-title");
+    const countLabel = document.getElementById("filter-count");
+    const emptyNote = document.getElementById("grid-empty");
+    const DATA_FILE = "records.json";
+
+    // The name this collection is about, as the toolbar's title filter offers
+    // it. A title counts as the name when it contains those three characters,
+    // so a longer title such as "鍾曉琳老師" is still the name; everything else
+    // — 小琳, 琳琳, "Chung Hiu Lam", the braille — is what the filter calls
+    // "others", which is the whole subject of the collection.
+    const COLLECTION_NAME = "鍾曉琳";
+
+    // What the type filter calls each kind of box: the words the boxes
+    // themselves use, with the two boxes a visitor can work — record 15's
+    // braille converter and record 17's live coder — offered together under one
+    // choice, "interactive".
+    const KIND_LABELS = {
+      audio: "sound",
+      video: "video",
+      image: "image",
+      text: "text",
+      pdf: "pdf",
+      interactive: "interactive"
+    };
+
+    // The kinds that share one choice in the type filter. Record 15 and record
+    // 17 are the two boxes that can be worked rather than only looked at, and
+    // the filter asks what a box is rather than which file it came from, so
+    // both answer to "interactive" while the cards themselves go on saying
+    // braille and python.
+    const KIND_GROUPS = {
+      converter: "interactive",
+      python: "interactive"
+    };
+
+    // What the two selects are asking for. Read from the selects rather than
+    // assumed, because a browser can restore an earlier choice on reload.
+    const filters = {
+      kind: typeFilter.value || "all",
+      title: titleFilter.value || "all"
+    };
+
+    // One entry per card: the card itself, the kind of media it shows and
+    // whether its title is the name. Filtering only compares these values, so
+    // a filter change never rebuilds a card and the two python boxes keep their
+    // runtime and their editor contents while they are out of the layout.
+    let cardIndex = [];
+
+    // Records in the last successful load, or -1 while none has arrived: -1 is
+    // what keeps a filter change from replacing a load error with a count.
+    let loadedCount = -1;
+
+    // Two records are interactive rather than pictorial.
+    //
+    // Record 17 (media/17.py) is a live coder: the script sits in an editable
+    // box with a Run button, and whatever it prints lands in the terminal
+    // underneath.
+    //
+    // Record 15 (media/15.py) is a converter: the box opens on the name in
+    // braille and its Convert button runs the file that reads the dots back
+    // into letters. The box has no terminal, so nothing the file prints is
+    // shown; its last line is simply taken as the reading, which keeps the
+    // answer in the file where it can be edited. The page keeps one copy of
+    // the braille table (see BRAILLE_SHAPES) for the single case where python
+    // cannot start at all, so the converter still works offline.
+    //
+    // Both are executed by Pyodide — real CPython compiled to WebAssembly — so
+    // "import random" and anything else a visitor types behaves the way it
+    // would in a normal python shell. The runtime is about 4 MB, so it is
+    // fetched the first time somebody presses Run or Convert and then reused by
+    // every later run on the page.
+    const PYODIDE_URL = "https://cdn.jsdelivr.net/pyodide/v314.0.7/full/";
+    let pyodidePromise = null;
+    let pythonVersion = "";
+
+    loadRecords();
+
+    reloadButton.addEventListener("click", loadRecords);
+
+    // Changing a filter only re-reads the page: the cards stay where they are
+    // and the file is not fetched again.
+    typeFilter.addEventListener("change", function () {
+      filters.kind = typeFilter.value;
+      applyFilters();
+    });
+
+    titleFilter.addEventListener("change", function () {
+      filters.title = titleFilter.value;
+      applyFilters();
+    });
+
+    function showStatus(message, state) {
+      status.textContent = message;
+      status.className = state ? "load-status " + state : "load-status";
+    }
+
+    function readValue(record, key, fallback) {
+      const raw = record ? record[key] : undefined;
+
+      if (raw === undefined || raw === null || String(raw).trim() === "") {
+        return fallback;
+      }
+
+      return String(raw);
+    }
+
+    function loadRecords() {
+      showStatus("Loading " + DATA_FILE + "…");
+
+      // "cache: no-store" plus a query string that changes on every load stops
+      // the browser from replaying an older copy of the JSON, which is why a
+      // plain refresh used to keep showing the previous records.
+      fetch(withCacheBuster(DATA_FILE), { cache: "no-store" })
+        .then(function (response) {
+          if (!response.ok) {
+            throw new Error(response.status + " " + response.statusText);
+          }
+
+          return response.json();
+        })
+        .then(function (data) {
+          const records = Array.isArray(data) ? data : data && data.records;
+
+          if (!Array.isArray(records)) {
+            throw new Error('no "records" array inside ' + DATA_FILE);
+          }
+
+          grid.textContent = "";
+          cardIndex = [];
+
+          records.forEach(function (record) {
+            const card = createCard(record);
+
+            grid.appendChild(card);
+            cardIndex.push({
+              card: card,
+              kind: mediaKind(record),
+              named: isTheName(record)
+            });
+          });
+
+          loadedCount = records.length;
+          // The type filter is built after the cards, because it offers only
+          // the kinds of media this file actually holds.
+          buildKindOptions();
+          applyFilters();
+        })
+        .catch(function (error) {
+          grid.textContent = "";
+          cardIndex = [];
+          loadedCount = -1;
+          emptyNote.hidden = true;
+          showStatus(
+            "Could not read " +
+              DATA_FILE +
+              " (" +
+              error.message +
+              "). Serve this folder over http — for example with the VS Code Live Server extension — " +
+              "instead of opening the file directly, then check the JSON for a missing comma or bracket.",
+            "is-error"
+          );
+          console.error("Could not read " + DATA_FILE, error);
+        });
+    }
+
+    // The toolbar's two filters. Hiding a card is done with a class, so a card
+    // that is filtered out keeps its flipped side, its editor contents and its
+    // place in the file: only the layout is asked to skip it.
+    function applyFilters() {
+      cardIndex.forEach(function (entry) {
+        setCardVisible(entry, matchesFilters(entry));
+      });
+
+      const visible = visibleCount();
+
+      // Only a load that brought records can be filtered down to none, so the
+      // note is kept off the page while a load is still failing or running.
+      emptyNote.hidden = !(loadedCount > 0 && visible === 0);
+      reportShown(visible);
+    }
+
+    function matchesFilters(entry) {
+      const kindMatches =
+        filters.kind === "all" || filterKind(entry.kind) === filters.kind;
+      const titleMatches =
+        filters.title === "all" ||
+        (filters.title === "name" ? entry.named : !entry.named);
+
+      return kindMatches && titleMatches;
+    }
+
+    function setCardVisible(entry, visible) {
+      if (visible === !entry.card.classList.contains("is-filtered")) {
+        return;
+      }
+
+      if (visible) {
+        entry.card.classList.remove("is-filtered");
+
+        return;
+      }
+
+      entry.card.classList.add("is-filtered");
+      // Sound and film keep playing when their card leaves the layout, so a
+      // card the filters hide is stopped rather than left running unseen.
+      entry.card.querySelectorAll("audio, video").forEach(function (player) {
+        player.pause();
+      });
+    }
+
+    function visibleCount() {
+      return cardIndex.filter(function (entry) {
+        return !entry.card.classList.contains("is-filtered");
+      }).length;
+    }
+
+    // The type choices are the choices really present, in the order they first
+    // appear, so a collection holding no pdf does not offer a pdf and the two
+    // interactive boxes are offered once between them. A choice that has gone
+    // since the last load falls back to "all types" instead of leaving the
+    // select asking for something that is no longer on the page.
+    function buildKindOptions() {
+      const kinds = [];
+
+      cardIndex.forEach(function (entry) {
+        const group = filterKind(entry.kind);
+
+        if (kinds.indexOf(group) === -1) {
+          kinds.push(group);
+        }
+      });
+
+      typeFilter.textContent = "";
+      typeFilter.appendChild(createOption("all", "all types"));
+      kinds.forEach(function (kind) {
+        typeFilter.appendChild(createOption(kind, KIND_LABELS[kind] || kind));
+      });
+
+      filters.kind = kinds.indexOf(filters.kind) === -1 ? "all" : filters.kind;
+      typeFilter.value = filters.kind;
+    }
+
+    // What the filter calls a kind: the two interactive kinds answer to their
+    // one shared choice, everything else answers to its own name.
+    function filterKind(kind) {
+      return KIND_GROUPS[kind] || kind;
+    }
+
+    function createOption(value, label) {
+      const option = document.createElement("option");
+      option.value = value;
+      option.textContent = label;
+
+      return option;
+    }
+
+    function isTheName(record) {
+      return readValue(record, "title", "").indexOf(COLLECTION_NAME) !== -1;
+    }
+
+    // One line carries both pieces of news: how much of the file loaded, and
+    // how much of it is on screen. The second half only appears when a filter
+    // is actually hiding something, and the count beside the filters says the
+    // same thing in fewer words for anyone scrolled away from the header.
+    function reportShown(visible) {
+      if (loadedCount < 0) {
+        countLabel.textContent = "";
+
+        return;
+      }
+
+      let message = countRecords(loadedCount) + " loaded from " + DATA_FILE + ".";
+
+      if (visible !== loadedCount) {
+        message += " Showing " + visible + " of " + loadedCount + ".";
+      }
+
+      showStatus(message, "is-ok");
+      countLabel.textContent =
+        visible === loadedCount
+          ? "all " + countRecords(loadedCount)
+          : visible + " of " + loadedCount + " records";
+    }
+
+    function countRecords(count) {
+      return count + (count === 1 ? " record" : " records");
+    }
+
+    function createCard(record) {
+      const card = document.createElement("article");
+      card.className = "card";
+
+      const inner = document.createElement("div");
+      inner.className = "inner";
+
+      const front = document.createElement("div");
+      front.className = "front";
+
+      const media = createMedia(record);
+
+      const frontTitle = document.createElement("h1");
+      frontTitle.textContent = readValue(record, "title", "(untitled)");
+
+      const frontPlace = document.createElement("p");
+      frontPlace.className = "meta";
+      frontPlace.textContent = readValue(record, "place", "place not recorded");
+
+      const button = document.createElement("button");
+      button.type = "button";
+      button.textContent = "Archive This";
+      button.addEventListener("click", function () {
+        card.classList.add("flipped");
+        card.querySelectorAll("audio, video").forEach(function (player) {
+          player.pause();
+        });
+      });
+
+      front.appendChild(media);
+      front.appendChild(frontTitle);
+      front.appendChild(frontPlace);
+      front.appendChild(button);
+
+      const back = document.createElement("div");
+      back.className = "back";
+
+      const specimen = document.createElement("div");
+      specimen.className = "specimen";
+
+      const catalog = document.createElement("p");
+      catalog.className = "catalog";
+      catalog.textContent =
+        readValue(record, "id", "no id") +
+        " / certainty " +
+        readValue(record, "certainty", "?");
+
+      const list = document.createElement("dl");
+      list.appendChild(createField("Title", readValue(record, "title", "(untitled)"), false));
+      list.appendChild(createField("Date", readValue(record, "date", "date not recorded"), false));
+      list.appendChild(createField("Place", readValue(record, "place", "place not recorded"), false));
+      list.appendChild(
+        createField("Recorded by", readValue(record, "recorder", "recorder not recorded"), false)
+      );
+      list.appendChild(
+        createField(
+          "What was not captured",
+          readValue(record, "not_captured", "(nothing was written down)"),
+          true
+        )
+      );
+
+      specimen.appendChild(catalog);
+      specimen.appendChild(list);
+      back.appendChild(specimen);
+
+      inner.appendChild(front);
+      inner.appendChild(back);
+      card.appendChild(inner);
+
+      return card;
+    }
+
+    function mediaSource(record) {
+      // "image" is accepted as a fallback key so this page can also read the
+      // single-record JSON shape used in the decaying-record exercise.
+      const source = record && (record.file || record.image);
+
+      return String(source || "");
+    }
+
+    function withCacheBuster(url) {
+      const separator = url.indexOf("?") === -1 ? "?" : "&";
+
+      return url + separator + "updated=" + Date.now();
+    }
+
+    function mediaKind(record) {
+      const file = mediaSource(record).split(/[?#]/)[0].toLowerCase();
+      const type = String((record && record.type) || "").toLowerCase();
+
+      // A converter is a python file that is not shown as code, so the record's
+      // "type" has to be read before the ".py" ending is: otherwise record 15
+      // would land in the live coder below and lose its Convert button.
+      if (type === "converter" || type === "braille") {
+        return "converter";
+      }
+
+      if (/\.(mp3|wav|m4a|aac|ogg|oga|opus|flac)$/.test(file)) {
+        return "audio";
+      }
+      if (/\.(mp4|m4v|webm|ogv|mov)$/.test(file)) {
+        return "video";
+      }
+      if (/\.pdf$/.test(file)) {
+        return "pdf";
+      }
+      if (/\.(txt|text|md|markdown|csv|log)$/.test(file)) {
+        return "text";
+      }
+      if (/\.(py|pyw)$/.test(file)) {
+        return "python";
+      }
+      if (/\.(jpe?g|png|gif|webp|avif|bmp|svg)$/.test(file)) {
+        return "image";
+      }
+
+      if (type === "sound" || type === "audio") {
+        return "audio";
+      }
+      if (type === "video") {
+        return "video";
+      }
+      if (type === "pdf") {
+        return "pdf";
+      }
+      if (type === "python" || type === "py" || type === "code" || type === "script") {
+        return "python";
+      }
+      if (type === "text" || type === "txt" || type === "note") {
+        return "text";
+      }
+      return "image";
+    }
+
+    // Record 15's converter runs media/15.py, but a visitor with no internet
+    // cannot start python at all, so the card keeps the same table for that one
+    // case. A letter is written here as the dots it uses, because Unicode
+    // orders the braille cells by their dots: dot 1 is worth 1, dot 2 is worth
+    // 2, dot 3 is worth 4 and so on up to dot 6 at 32.
+    const BRAILLE_SHAPES = {
+      a: [1], b: [1, 2], c: [1, 4], d: [1, 4, 5], e: [1, 5], f: [1, 2, 4],
+      g: [1, 2, 4, 5], h: [1, 2, 5], i: [2, 4], j: [2, 4, 5], k: [1, 3],
+      l: [1, 2, 3], m: [1, 3, 4], n: [1, 3, 4, 5], o: [1, 3, 5], p: [1, 2, 3, 4],
+      q: [1, 2, 3, 4, 5], r: [1, 2, 3, 5], s: [2, 3, 4], t: [2, 3, 4, 5],
+      u: [1, 3, 6], v: [1, 2, 3, 6], w: [2, 4, 5, 6], x: [1, 3, 4, 6],
+      y: [1, 3, 4, 5, 6], z: [1, 3, 5, 6]
+    };
+
+    const BRAILLE_CELLS = {};
+    Object.keys(BRAILLE_SHAPES).forEach(function (letter) {
+      BRAILLE_CELLS[String.fromCharCode(0x2800 + dotValue(BRAILLE_SHAPES[letter]))] = letter;
+    });
+
+    const BRAILLE_CAPITAL = String.fromCharCode(0x2800 + dotValue([6]));
+    const BRAILLE_BLANK = String.fromCharCode(0x2800);
+
+    function dotValue(dots) {
+      return dots.reduce(function (total, dot) {
+        return total + Math.pow(2, dot - 1);
+      }, 0);
+    }
+
+    function readBraille(dots) {
+      let capital = false;
+      let reading = "";
+
+      Array.from(String(dots || "")).forEach(function (cell) {
+        if (cell === BRAILLE_CAPITAL) {
+          capital = true;
+          return;
+        }
+
+        if (cell === BRAILLE_BLANK) {
+          reading += " ";
+          capital = false;
+          return;
+        }
+
+        const letter = BRAILLE_CELLS[cell];
+
+        if (letter === undefined) {
+          reading += "?";
+        } else {
+          reading += capital ? letter.toUpperCase() : letter;
+        }
+
+        capital = false;
+      });
+
+      return reading.trim();
+    }
+
+    function createMedia(record) {
+      const kind = mediaKind(record);
+      const source = mediaSource(record);
+
+      const frame = document.createElement("div");
+      frame.className = "front-media " + kind;
+      frame.appendChild(createMissingNote());
+
+      if (kind === "audio") {
+        const label = document.createElement("span");
+        label.className = "media-label";
+        label.textContent = "sound recording";
+
+        const audio = document.createElement("audio");
+        audio.controls = true;
+        audio.preload = "metadata";
+        audio.src = withCacheBuster(source);
+        audio.addEventListener("error", function () {
+          frame.classList.add("is-missing");
+        });
+
+        frame.appendChild(label);
+        frame.appendChild(audio);
+
+        return frame;
+      }
+
+      if (kind === "video") {
+        const video = document.createElement("video");
+        video.controls = true;
+        video.preload = "metadata";
+        video.playsInline = true;
+        video.src = withCacheBuster(source);
+        video.addEventListener("error", function () {
+          frame.classList.add("is-missing");
+        });
+
+        frame.appendChild(video);
+
+        return frame;
+      }
+
+      if (kind === "pdf") {
+        const label = document.createElement("span");
+        label.className = "media-label";
+        label.textContent = "pdf document";
+
+        const viewer = document.createElement("iframe");
+        viewer.className = "media-pdf";
+        viewer.title = readValue(record, "title", "pdf document");
+        viewer.src = withCacheBuster(source) + "#view=FitH";
+
+        frame.appendChild(label);
+        frame.appendChild(viewer);
+        frame.appendChild(createOpenLink(source, "open file"));
+
+        fetch(source, { method: "HEAD", cache: "no-store" })
+          .then(function (response) {
+            if (!response.ok) {
+              frame.classList.add("is-missing");
+            }
+          })
+          .catch(function () {
+            frame.classList.add("is-missing");
+          });
+
+        return frame;
+      }
+
+      if (kind === "text") {
+        const label = document.createElement("span");
+        label.className = "media-label";
+        label.textContent = "text document";
+
+        const body = document.createElement("pre");
+        body.className = "media-text";
+        body.textContent = "loading…";
+
+        frame.appendChild(label);
+        frame.appendChild(body);
+        frame.appendChild(createOpenLink(source, "open file"));
+
+        fetch(withCacheBuster(source), { cache: "no-store" })
+          .then(function (response) {
+            if (!response.ok) {
+              throw new Error("cannot read " + source);
+            }
+            return response.text();
+          })
+          .then(function (content) {
+            const trimmed = content.replace(/\s+$/, "");
+            body.textContent = trimmed === "" ? "(this file is empty)" : trimmed;
+          })
+          .catch(function () {
+            body.textContent = "";
+            frame.classList.add("is-missing");
+          });
+
+        return frame;
+      }
+
+      if (kind === "python") {
+        const name = fileName(source);
+
+        const label = document.createElement("span");
+        label.className = "media-label";
+        label.textContent = "python file · " + name;
+
+        // The script is this record's "picture", except that a visitor may
+        // rewrite it: the editor holds the same text as media/17.py until then.
+        const editor = document.createElement("textarea");
+        editor.className = "code-editor";
+        editor.spellcheck = false;
+        editor.setAttribute("wrap", "off");
+        editor.setAttribute("aria-label", "python code for " + readValue(record, "title", "this record"));
+        editor.value = "loading " + name + "…";
+
+        // Tab indents the script instead of jumping to the next control.
+        editor.addEventListener("keydown", function (event) {
+          if (event.key === "Tab") {
+            event.preventDefault();
+            insertTextAtCursor(editor, "    ");
+          }
+        });
+
+        const controls = document.createElement("div");
+        controls.className = "code-console";
+
+        const runButton = document.createElement("button");
+        runButton.type = "button";
+        runButton.disabled = true;
+        runButton.textContent = "Run";
+
+        const runState = document.createElement("span");
+        runState.className = "run-state";
+        runState.textContent = "loading " + name;
+
+        controls.appendChild(runButton);
+        controls.appendChild(runState);
+
+        const terminal = document.createElement("pre");
+        terminal.className = "terminal";
+        terminal.setAttribute("role", "log");
+        terminal.setAttribute("aria-label", "python output for " + readValue(record, "title", "this record"));
+
+        frame.appendChild(label);
+        frame.appendChild(editor);
+        frame.appendChild(controls);
+        frame.appendChild(terminal);
+
+        runButton.addEventListener("click", function () {
+          runPythonCode({
+            editor: editor,
+            terminal: terminal,
+            button: runButton,
+            state: runState,
+            name: name
+          });
+        });
+
+        fetch(withCacheBuster(source), { cache: "no-store" })
+          .then(function (response) {
+            if (!response.ok) {
+              throw new Error("cannot read " + source);
+            }
+
+            return response.text();
+          })
+          .then(function (content) {
+            const script = content.replace(/\s+$/, "");
+            const lineCount = script === "" ? 0 : script.split("\n").length;
+
+            editor.value = script;
+            runButton.disabled = false;
+            runState.textContent = "ready";
+            terminal.textContent = "";
+
+            writeTerminal(
+              terminal,
+              "> " + name + " loaded (" + lineCount + " line" + (lineCount === 1 ? "" : "s") + "), press Run",
+              "terminal-prompt"
+            );
+          })
+          .catch(function () {
+            editor.value = "";
+            frame.classList.add("is-missing");
+          });
+
+        return frame;
+      }
+
+      if (kind === "converter") {
+        const name = fileName(source);
+
+        // The dots are the record's "picture", so they live in the record and
+        // are on screen before any code has run. Only the reading comes from the
+        // file, which prints it as its last line of output.
+        const dots = readValue(record, "braille", "").trim();
+
+        const label = document.createElement("span");
+        label.className = "media-label";
+        label.textContent = "braille converter · " + name;
+
+        const screen = document.createElement("div");
+        screen.className = "braille-screen";
+        screen.setAttribute("aria-live", "polite");
+
+        const shown = document.createElement("span");
+        shown.className = "braille-dots";
+
+        screen.appendChild(shown);
+
+        const controls = document.createElement("div");
+        controls.className = "code-console";
+
+        const convertButton = document.createElement("button");
+        convertButton.type = "button";
+        convertButton.disabled = true;
+        convertButton.textContent = "Convert";
+
+        const runState = document.createElement("span");
+        runState.className = "run-state";
+        runState.textContent = "loading " + name;
+
+        controls.appendChild(convertButton);
+        controls.appendChild(runState);
+
+        frame.appendChild(label);
+        frame.appendChild(screen);
+        frame.appendChild(controls);
+
+        // One state object per card: "reading" is what the file says the dots
+        // mean, and "showing" is which side of the conversion is on screen.
+        // The box has no terminal, so there is none to hold here either.
+        const task = {
+          name: name,
+          dots: dots,
+          script: "",
+          shown: shown,
+          button: convertButton,
+          state: runState,
+          reading: "",
+          showing: "dots"
+        };
+
+        showDots(task);
+
+        convertButton.addEventListener("click", function () {
+          // Until the first conversion the button asks the file to read the
+          // dots; afterwards it flips between the dots and the reading.
+          if (task.reading === "") {
+            convertRecord(task);
+            return;
+          }
+
+          if (task.showing === "reading") {
+            showDots(task);
+            runState.textContent = "braille";
+          } else {
+            showReading(task);
+            runState.textContent = "converted";
+          }
+        });
+
+        fetch(withCacheBuster(source), { cache: "no-store" })
+          .then(function (response) {
+            if (!response.ok) {
+              throw new Error("cannot read " + source);
+            }
+
+            return response.text();
+          })
+          .then(function (content) {
+            const script = content.replace(/\s+$/, "");
+            const lineCount = script === "" ? 0 : script.split("\n").length;
+
+            task.script = script;
+            convertButton.disabled = false;
+            // The line count used to be announced in the terminal; with no
+            // terminal left, the state line is where that news goes.
+            runState.textContent = "ready · " + lineCount + " line" + (lineCount === 1 ? "" : "s");
+          })
+          .catch(function () {
+            frame.classList.add("is-missing");
+          });
+
+        return frame;
+      }
+
+      const image = document.createElement("img");
+      image.src = withCacheBuster(source);
+      image.alt = readValue(record, "title", "");
+      image.addEventListener("error", function () {
+        image.alt = "";
+        image.removeAttribute("src");
+        frame.classList.add("is-missing");
+      });
+
+      frame.appendChild(image);
+
+      return frame;
+    }
+
+    function createMissingNote() {
+      const note = document.createElement("span");
+      note.className = "media-missing-note";
+      note.textContent = "media unavailable";
+
+      return note;
+    }
+
+    function createOpenLink(file, text) {
+      const link = document.createElement("a");
+      link.className = "media-open";
+      link.href = file;
+      link.target = "_blank";
+      link.rel = "noopener";
+      link.textContent = text;
+
+      return link;
+    }
+
+    function fileName(file) {
+      const clean = String(file || "").split(/[?#]/)[0];
+      const parts = clean.split("/");
+
+      return parts[parts.length - 1] || "script.py";
+    }
+
+    function loadScript(url) {
+      return new Promise(function (resolve, reject) {
+        const script = document.createElement("script");
+        script.src = url;
+
+        script.addEventListener("load", function () {
+          resolve();
+        });
+        script.addEventListener("error", function () {
+          script.remove();
+          reject(new Error("could not reach " + url));
+        });
+
+        document.head.appendChild(script);
+      });
+    }
+
+    function getPyodide() {
+      if (pyodidePromise) {
+        return pyodidePromise;
+      }
+
+      // The runtime is fetched at most once per visit: the promise is shared, so
+      // two python cards (or two quick clicks) cannot start two downloads.
+      pyodidePromise = loadScript(PYODIDE_URL + "pyodide.js")
+        .then(function () {
+          // indexURL tells the loader where pyodide.asm.wasm and the python
+          // standard library live once pyodide.js has been fetched.
+          return window.loadPyodide({ indexURL: PYODIDE_URL });
+        })
+        .catch(function (error) {
+          // Forget the failure so a later Run can try again — a dropped wifi
+          // connection should not kill the card for the rest of the visit.
+          pyodidePromise = null;
+          throw error;
+        });
+
+      return pyodidePromise;
+    }
+
+    // Both interactive cards need the same runtime, and the version is fetched
+    // once for the whole visit, so that step lives here once. The terminal is
+    // optional: record 17 has one and reads these notices in it, while record
+    // 15's box has none and simply gets nothing written.
+    function withPython(terminal, onReady) {
+      if (!pyodidePromise) {
+        writeTerminal(terminal, "> fetching the browser python runtime…", "terminal-prompt");
+      }
+
+      return getPyodide().then(function (runtime) {
+        if (pythonVersion === "") {
+          // Remembered for the whole visit: the version belongs to the runtime,
+          // not to the card that happened to load it first.
+          pythonVersion = String(runtime.runPython("import sys; sys.version.split()[0]"));
+          writeTerminal(terminal, "> python " + pythonVersion + " ready in this browser", "terminal-prompt");
+        }
+
+        return onReady(runtime);
+      });
+    }
+
+    function runPythonCode(task) {
+      const terminal = task.terminal;
+
+      task.button.disabled = true;
+      task.state.textContent = "starting python";
+
+      withPython(terminal, function (runtime) {
+        // Everything the script prints — and everything it gets wrong — is
+        // appended to this card's terminal instead of the developer console.
+        runtime.setStdout({
+          batched: function (line) {
+            writeTerminal(terminal, line, "terminal-out");
+          }
+        });
+        runtime.setStderr({
+          batched: function (line) {
+            writeTerminal(terminal, line, "terminal-error");
+          }
+        });
+
+        writeTerminal(terminal, "> run " + task.name, "terminal-prompt");
+        task.state.textContent = "running";
+
+        const startedAt = Date.now();
+
+        return runtime.runPythonAsync(task.editor.value).then(
+          function () {
+            const seconds = ((Date.now() - startedAt) / 1000).toFixed(1);
+
+            writeTerminal(terminal, "> finished in " + seconds + " s", "terminal-prompt");
+            task.state.textContent = "ran in " + seconds + " s";
+          },
+          function (error) {
+            // A python mistake is part of the piece: show the traceback.
+            writeTraceback(terminal, error);
+            task.state.textContent = "error";
+          }
+        );
+      })
+        .catch(function (error) {
+          writeTerminal(terminal, "> could not start python (" + error.message + ")", "terminal-error");
+          writeTerminal(
+            terminal,
+            "> this card runs python inside your browser, so it needs internet access",
+            "terminal-error"
+          );
+          task.state.textContent = "python unavailable";
+        })
+        .then(function () {
+          task.button.disabled = false;
+        });
+    }
+
+    function convertRecord(task) {
+      const printed = [];
+      let readByFile = false;
+
+      task.button.disabled = true;
+      task.state.textContent = "converting";
+
+      const startedAt = Date.now();
+
+      // No terminal is passed, because this box has none: what the file prints
+      // is collected and never shown. Only its last line is wanted, since that
+      // is the reading.
+      withPython(null, function (runtime) {
+        runtime.setStdout({
+          batched: function (line) {
+            printed.push(line);
+          }
+        });
+
+        task.state.textContent = "reading the dots";
+
+        return runtime.runPythonAsync(task.script);
+      })
+        .then(function () {
+          const reading = lastLine(printed);
+
+          if (reading === "") {
+            throw new Error("the script printed nothing");
+          }
+
+          task.reading = reading;
+          readByFile = true;
+        })
+        .catch(function () {
+          // Either python never arrived (no internet) or the file could not read
+          // the dots. The card carries the same table for that one case, so the
+          // name is not lost to a missing runtime.
+          task.reading = readBraille(task.dots);
+        })
+        .then(function () {
+          if (task.reading === "") {
+            task.state.textContent = "could not read the dots";
+            task.button.disabled = false;
+
+            return;
+          }
+
+          const seconds = ((Date.now() - startedAt) / 1000).toFixed(1);
+
+          showReading(task);
+          // With no terminal to report into, the state line is the only place
+          // left to say who read the dots.
+          task.state.textContent =
+            (readByFile ? "converted in " : "read without python in ") + seconds + " s";
+          task.button.disabled = false;
+        });
+    }
+
+    function writeTraceback(terminal, error) {
+      String((error && error.message) || error)
+        .split("\n")
+        .forEach(function (line) {
+          writeTerminal(terminal, line, "terminal-error");
+        });
+    }
+
+    // The two sides of record 15's conversion. The dots keep the box in the
+    // same voice as the rest of the collection; the reading comes back in the
+    // serif the titles use, because it is a name again and no longer a code.
+    function showDots(task) {
+      task.shown.className = "braille-dots";
+      task.shown.textContent = task.dots === "" ? "(no braille in this record)" : task.dots;
+      task.showing = "dots";
+      task.button.textContent = "Convert";
+    }
+
+    function showReading(task) {
+      task.shown.className = "braille-reading";
+      task.shown.textContent = task.reading;
+      task.showing = "reading";
+      task.button.textContent = "Show braille";
+    }
+
+    function lastLine(lines) {
+      // The converter trusts the last thing the file prints, so a script may
+      // narrate first and name the reading at the end.
+      for (let line = lines.length - 1; line >= 0; line -= 1) {
+        if (String(lines[line]).trim() !== "") {
+          return String(lines[line]).trim();
+        }
+      }
+
+      return "";
+    }
+
+    function writeTerminal(terminal, text, className) {
+      // Record 17's box is the only one with a terminal on the page: record 15's
+      // converter passes none, so its news is carried by its state line instead
+      // and anything aimed at a terminal here has nowhere to go.
+      if (!terminal) {
+        return;
+      }
+
+      // Lines are separated by real newline nodes rather than "display: block"
+      // so that selecting the terminal text keeps its line breaks.
+      if (terminal.children.length > 0) {
+        terminal.appendChild(document.createTextNode("\n"));
+      }
+
+      const line = document.createElement("span");
+      line.className = "terminal-line " + (className || "terminal-out");
+      // A single space keeps an empty line the same height as the others.
+      line.textContent = text === "" ? " " : text;
+
+      terminal.appendChild(line);
+      terminal.scrollTop = terminal.scrollHeight;
+    }
+
+    function insertTextAtCursor(field, text) {
+      const start = field.selectionStart || 0;
+      const end = field.selectionEnd === undefined ? start : field.selectionEnd;
+
+      if (typeof field.setRangeText === "function") {
+        field.setRangeText(text, start, end, "end");
+        field.selectionStart = start + text.length;
+        field.selectionEnd = start + text.length;
+
+        return;
+      }
+
+      field.value = field.value.slice(0, start) + text + field.value.slice(end);
+    }
+
+    function createField(label, content, isLast) {
+      const wrapper = document.createElement("div");
+      wrapper.className = "field";
+
+      const term = document.createElement("dt");
+      term.textContent = label;
+
+      const description = document.createElement("dd");
+      description.className = isLast ? "value last" : "value";
+      description.textContent = content;
+
+      wrapper.appendChild(term);
+      wrapper.appendChild(description);
+
+      return wrapper;
+    }
+
+    // ---------------------------------------------------------------------
+    // The rain of letters
+    //
+    // The twenty-six letters of the alphabet come down the window in random
+    // order and gather on the floor at the bottom, coming to rest on the floor
+    // and on one another. The rain does not stop when the first alphabet has
+    // landed: it goes on, alphabet after alphabet, while the pile grows
+    // upward, and it only stops once the pile has climbed to the top of the
+    // page — the window filling with letters from the bottom up. Then the pile
+    // stands for a while, lets go, and the fall starts again from the floor,
+    // the same letters finding a different way up, which is the subject of
+    // this collection.
+    //
+    // The layer is painted over the cards at a low opacity and under the
+    // toolbar, it answers no clicks and it is not read out. A visitor whose
+    // system asks for less motion gets no rain at all, and the letters are put
+    // down while the tab is in the background.
+    const RAIN_ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+    const RAIN_INK = "44, 42, 38";
+    const RAIN_SIZES = [10, 20, 30, 40];
+    const RAIN_GRAVITY = 900;         // px per second, per second; letters start
+                                      // at rest and keep speeding up, so the
+                                      // fall reads as gravity rather than a
+                                      // steady drift
+    const RAIN_GAP_MIN = 240;         // the first letters are let go 240–620 ms
+    const RAIN_GAP_MAX = 620;         // apart, and the pace quickens from there
+    const RAIN_GAP_QUICK_MIN = 70;    // ...to 70–190 ms, because a window full of
+    const RAIN_GAP_QUICK_MAX = 190;   // alphabet is a great many letters to fall
+    const RAIN_TOP = 26;              // the pile counts as "at the top" once its
+                                      // highest letter is this close to the edge:
+                                      // one letter's height, so the topmost
+                                      // letter still stands whole on the page
+    const RAIN_HOLD = 6000;           // how long a full page of alphabet rests, ms
+    const RAIN_FADE = 1400;           // how long the pile takes to let go, ms
+
+    startAlphabetRain();
+
+    // Everything the rain needs lives in here, so the rest of the page has only
+    // to know that its canvas exists.
+    function startAlphabetRain() {
+      const canvas = document.getElementById("alphabet-rain");
+
+      // No canvas, or nothing to draw with: the page is left exactly as it is.
+      if (!canvas || typeof canvas.getContext !== "function") {
+        return;
+      }
+      if (
+        typeof window !== "object" ||
+        !window ||
+        typeof window.requestAnimationFrame !== "function"
+      ) {
+        return;
+      }
+      // The rain is decoration, so it is the first thing to go when a visitor
+      // has told their system that motion makes reading harder.
+      if (
+        window.matchMedia &&
+        window.matchMedia("(prefers-reduced-motion: reduce)").matches
+      ) {
+        return;
+      }
+
+      const context = canvas.getContext("2d");
+
+      if (!context) {
+        return;
+      }
+
+      let width = 0;
+      let height = 0;
+      let floorY = 0;                // where the bottom of a resting letter is
+      let heaps = [];                // x positions the letters come down over
+      let queue = [];                // the alphabet that has not fallen yet
+      let falling = [];
+      let settled = [];
+      let phase = "falling";
+      let phaseEndsAt = 0;
+      let nextDropAt = 0;
+      let pileAlpha = 1;
+      let lastAt = 0;
+      let running = false;
+      let resizeTimer = null;
+
+      context.textAlign = "center";
+      context.textBaseline = "alphabetic";
+
+      // The canvas is the window, in real pixels so the letters stay sharp on a
+      // dense screen, while everything below counts in the CSS pixels the rest
+      // of the page is laid out in.
+      function measure() {
+        const ratio = window.devicePixelRatio || 1;
+
+        width = window.innerWidth || document.documentElement.clientWidth;
+        height = window.innerHeight || document.documentElement.clientHeight;
+        canvas.width = Math.round(width * ratio);
+        canvas.height = Math.round(height * ratio);
+        context.setTransform(ratio, 0, 0, ratio, 0, 0);
+        floorY = height - 8;
+      }
+
+      // Three to five places for the letters to gather, spread along the floor
+      // with enough give in the spacing that they do not look measured out.
+      function planHeaps() {
+        const count = 3 + Math.floor(Math.random() * 3);
+
+        heaps = [];
+
+        for (let i = 0; i < count; i += 1) {
+          heaps.push(
+            ((i + 0.5) / count + (Math.random() - 0.5) * (0.6 / count)) * width
+          );
+        }
+      }
+
+      // A fresh alphabet: shuffled, so no two falls are ever the same, and the
+      // places the letters gather are chosen again.
+      function begin(at) {
+        queue = shuffle(RAIN_ALPHABET.split(""));
+        falling = [];
+        settled = [];
+        pileAlpha = 1;
+        phase = "falling";
+        nextDropAt = at + 200;
+        planHeaps();
+      }
+
+      function shuffle(items) {
+        for (let i = items.length - 1; i > 0; i -= 1) {
+          const swap = Math.floor(Math.random() * (i + 1));
+          const held = items[i];
+
+          items[i] = items[swap];
+          items[swap] = held;
+        }
+
+        return items;
+      }
+
+      // One letter is let go: one of four sizes, a random place to come down,
+      // and just above the top edge of the window, with no speed of its own.
+      // Gravity is what moves it. The alphabet is shuffled again
+      // whenever it runs out, because the rain goes on until the pile has
+      // climbed to the top of the page and a single alphabet is nothing like
+      // enough letters to fill a window.
+      function drop() {
+        if (queue.length === 0) {
+          queue = shuffle(RAIN_ALPHABET.split(""));
+        }
+
+        const char = queue.pop();
+
+        if (char === undefined) {
+          return;
+        }
+
+        const size = RAIN_SIZES[Math.floor(Math.random() * RAIN_SIZES.length)];
+        const letter = {
+          char: char,
+          size: size,
+          alpha: 0.12 + Math.random() * 0.16,
+          h: Math.round(size * 0.72),
+          w: 0,
+          x: 0,
+          left: 0,
+          right: 0,
+          y: -6,
+          top: -6,
+          vy: 0,
+          surface: floorY
+        };
+
+        context.font = fontOf(size);
+        letter.w = Math.max(10, Math.round(context.measureText(char).width));
+        letter.x = landingX(letter.w);
+        letter.left = letter.x - letter.w / 2;
+        letter.right = letter.x + letter.w / 2;
+
+        falling.push(letter);
+      }
+
+      // Most letters come down over one of the heaps, which is what lets the
+      // alphabet pile up rather than settle in a single line; the rest land
+      // wherever they fall.
+      function landingX(letterWidth) {
+        const edge = letterWidth / 2 + 2;
+
+        if (heaps.length > 0 && Math.random() < 0.75) {
+          const heap = heaps[Math.floor(Math.random() * heaps.length)];
+
+          return clamp(
+            heap + (Math.random() - 0.5) * letterWidth * 1.6,
+            edge,
+            width - edge
+          );
+        }
+
+        return clamp(Math.random() * width, edge, width - edge);
+      }
+
+      function clamp(value, low, high) {
+        return Math.min(Math.max(value, low), Math.max(low, high));
+      }
+
+      function fontOf(size) {
+        return size + 'px Georgia, "Times New Roman", serif';
+      }
+
+      // A letter is let go sooner the higher the pile already is: the first
+      // letters come down slowly enough to be watched one at a time, and the
+      // last ones hurry, because the climb from the floor to the top of the
+      // window is a long one and it should take a minute rather than an
+      // afternoon.
+      function dropGap() {
+        const climbed = clamp(
+          (floorY - pileTop()) / Math.max(1, floorY - RAIN_TOP),
+          0,
+          1
+        );
+        const slow =
+          RAIN_GAP_MIN + Math.random() * (RAIN_GAP_MAX - RAIN_GAP_MIN);
+        const quick =
+          RAIN_GAP_QUICK_MIN +
+          Math.random() * (RAIN_GAP_QUICK_MAX - RAIN_GAP_QUICK_MIN);
+
+        return slow + (quick - slow) * climbed;
+      }
+
+      // Every letter falls until it meets the floor or the top of a letter
+      // already resting there: whichever comes first stops it, which is what
+      // makes the pile grow upward instead of the letters passing through one
+      // another.
+      function fall(dt) {
+        falling = falling.filter(function (letter) {
+          letter.surface = restOn(letter);
+          letter.vy += RAIN_GRAVITY * dt;
+          letter.y += letter.vy * dt;
+
+          if (letter.y < letter.surface) {
+            return true;
+          }
+
+          letter.y = letter.surface;
+          letter.top = letter.y - letter.h;
+          settled.push(letter);
+
+          return false;
+        });
+      }
+
+      // The highest thing under a letter: the top of any letter it is over, or
+      // the floor.
+      function restOn(letter) {
+        let surface = floorY;
+
+        settled.forEach(function (rested) {
+          if (rested.right <= letter.left || rested.left >= letter.right) {
+            return;
+          }
+
+          surface = Math.min(surface, rested.top);
+        });
+
+        return surface;
+      }
+
+      // How high the alphabet has piled up: the top of the highest letter
+      // standing on the floor, or the floor itself while nothing has landed.
+      function pileTop() {
+        let highest = floorY;
+
+        settled.forEach(function (letter) {
+          highest = Math.min(highest, letter.top);
+        });
+
+        return highest;
+      }
+
+      // The rain has done its work once the pile has climbed to the top of the
+      // page. RAIN_TOP is one letter's height, so the gate closes while the
+      // highest letter still stands whole on the page and nothing comes to rest
+      // above the top edge, where it would be half out of sight.
+      function pileReachedTop() {
+        return settled.length > 0 && pileTop() <= RAIN_TOP;
+      }
+
+      // The alphabet's day: fall until the pile has reached the top of the page,
+      // rest, let go, fall again. The pile is the point of the effect, so a page
+      // that has filled up is held far longer than it took to build.
+      function advance(now) {
+        if (phase === "falling" && falling.length === 0 && pileReachedTop()) {
+          phase = "holding";
+          phaseEndsAt = now + RAIN_HOLD;
+
+          return;
+        }
+
+        if (phase === "holding") {
+          if (now >= phaseEndsAt) {
+            phase = "clearing";
+            phaseEndsAt = now + RAIN_FADE;
+          }
+
+          return;
+        }
+
+        if (phase === "clearing") {
+          pileAlpha = Math.max(0, (phaseEndsAt - now) / RAIN_FADE);
+
+          if (now >= phaseEndsAt) {
+            begin(now);
+          }
+        }
+      }
+
+      function drawLetter(letter, alpha) {
+        context.font = fontOf(letter.size);
+        context.fillStyle =
+          "rgba(" + RAIN_INK + ", " + (letter.alpha * alpha).toFixed(3) + ")";
+        context.fillText(letter.char, letter.x, letter.y);
+      }
+
+      // Each frame is drawn from nothing, so the page shows through the empty
+      // canvas and the letters are exactly where the frame before left them.
+      // The time since the last frame is capped, so a tab that has just come
+      // back does not jump the whole alphabet onto the floor at once.
+      function step(now) {
+        if (!running) {
+          return;
+        }
+
+        const dt = lastAt ? Math.min(0.05, (now - lastAt) / 1000) : 0;
+
+        lastAt = now;
+        context.clearRect(0, 0, width, height);
+
+        if (phase === "falling") {
+          // Once the pile has climbed to the top of the page no further letter
+          // is let go: whatever is still in the air comes down, and the page
+          // stands full.
+          if (now >= nextDropAt && !pileReachedTop()) {
+            drop();
+            nextDropAt = now + dropGap();
+          }
+
+          fall(dt);
+        }
+
+        settled.forEach(function (letter) {
+          drawLetter(letter, pileAlpha);
+        });
+        falling.forEach(function (letter) {
+          drawLetter(letter, 1);
+        });
+
+        advance(now);
+        window.requestAnimationFrame(step);
+      }
+
+      function wake() {
+        if (running) {
+          return;
+        }
+
+        running = true;
+        lastAt = 0;                  // the first frame back sets the clock
+        window.requestAnimationFrame(step);
+      }
+
+      // A window that changes size would otherwise leave letters standing in
+      // the air where the floor used to be, so the alphabet starts again; the
+      // short wait keeps a dragged window edge from starting it over and over.
+      window.addEventListener("resize", function () {
+        window.clearTimeout(resizeTimer);
+        resizeTimer = window.setTimeout(function () {
+          measure();
+          begin(lastAt);
+        }, 200);
+      });
+
+      // Nothing is drawn while the tab is in the background: no one is looking
+      // at it, and a page left open all day should not keep a fan running.
+      document.addEventListener("visibilitychange", function () {
+        if (document.hidden) {
+          running = false;
+
+          return;
+        }
+
+        wake();
+      });
+
+      measure();
+      begin(0);
+      wake();
+    }
+  </script>
+</body>
+</html>

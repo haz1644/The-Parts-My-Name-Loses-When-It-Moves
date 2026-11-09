@@ -1,0 +1,226 @@
+{
+  "collection": "The Parts My Name Loses When It Moves",
+  "records": [
+    {
+      "id": "REC-001",
+      "title": "小琳",
+      "type": "sound",
+      "file": "media/01.mp3",
+      "date": "2026-09-12",
+      "place": "Mum, Whatsapp",
+      "recorder": "Hazel's Mum",
+      "not_captured": "Our facial expressions",
+      "certainty": 4
+    },
+    {
+      "id": "REC-002",
+      "title": "鍾曉琳",
+      "type": "video",
+      "file": "media/02.mp4",
+      "date": "2024-06-29",
+      "place": "Harbour Plaza Room, Harbour Plaza North Point",
+      "recorder": "Hazel",
+      "not_captured": "Our thoughts, Her reason to call my name",
+      "certainty": 5
+    },
+    {
+      "id": "REC-003",
+      "title": "hazel老师、曉琳老師",
+      "type": "image",
+      "file": "media/03.jpeg",
+      "date": "2026-09-14",
+      "place": "雞煲, Instagram",
+      "recorder": "Hazel",
+      "not_captured": "Our inside jokes",
+      "certainty": 4
+    },
+    {
+      "id": "REC-004",
+      "title": "鍾曉琳",
+      "type": "image",
+      "file": "media/04.jpeg",
+      "date": "❚❚❚❚-❚❚-❚❚",
+      "place": "Yan Oi Tong Mrs Augusta Cheung Kindergarten exercise book",
+      "recorder": "Hazel",
+      "not_captured": "My surroundings except the handwriting",
+      "certainty": 4
+    },
+    {
+      "id": "REC-005",
+      "title": "琳琳",
+      "type": "image",
+      "file": "media/05.jpeg",
+      "date": "2026-❚❚-❚❚",
+      "place": "Hazel's Desk",
+      "recorder": "Hazel",
+      "not_captured": "My happiness beyond tiredness",
+      "certainty": 4
+    },
+    {
+      "id": "REC-006",
+      "title": "鍾曉",
+      "type": "image",
+      "file": "media/06.jpeg",
+      "date": "2026-05-17",
+      "place": "Cherry, Whatsapp",
+      "recorder": "Hazel",
+      "not_captured": "My regret at always being late",
+      "certainty": 4
+    },
+    {
+      "id": "REC-007",
+      "title": "鍾曉霖",
+      "type": "image",
+      "file": "media/07.jpeg",
+      "date": "2026-08-19",
+      "place": "1/8 BBQ, Whatsapp",
+      "recorder": "Hazel",
+      "not_captured": "My acceptance to her misspelling as usual",
+      "certainty": 3
+    },
+    {
+      "id": "REC-008",
+      "title": "鍾曉琳",
+      "type": "sound",
+      "file": "media/08.mp3",
+      "date": "2026-09-16",
+      "place": "Traditional Chinese to Cantonese, Google Translate",
+      "recorder": "Hazel",
+      "not_captured": "My surprise",
+      "certainty": 3
+    },
+    {
+      "id": "REC-009",
+      "title": "中小琳",
+      "type": "image",
+      "file": "media/09.jpeg",
+      "date": "❚❚❚❚-❚❚-❚❚",
+      "place": "Hazel's Folder of People I cherish",
+      "recorder": "Hazel",
+      "not_captured": "My gratitude, and the fact that she shares my birthday",
+      "certainty": 3
+    },
+    {
+      "id": "REC-010",
+      "title": "琳",
+      "type": "image",
+      "file": "media/10.jpeg",
+      "date": "❚❚❚❚-❚❚-❚❚",
+      "place": "Hazel's Folder of People I cherish",
+      "recorder": "Hazel",
+      "not_captured": "My gratitude, Our fading friendship",
+      "certainty": 4
+    },
+    {
+      "id": "REC-011",
+      "title": "村長",
+      "type": "image",
+      "file": "media/11.jpeg",
+      "date": "2026-08-20",
+      "place": "Miss Yeung, Whatsapp",
+      "recorder": "Hazel",
+      "not_captured": "My amusement",
+      "certainty": 3
+    },
+    {
+      "id": "REC-012",
+      "title": "衶囂菻",
+      "type": "image",
+      "file": "media/12.jpeg",
+      "date": "2026-08-23",
+      "place": "Sandy's Story, Instagram",
+      "recorder": "Sandy",
+      "not_captured": "My amusement, Her smile",
+      "certainty": 2
+    },
+    {
+      "id": "REC-013",
+      "title": "鍾曉琳",
+      "type": "pdf",
+      "file": "media/13.pdf",
+      "date": "2025-02-28",
+      "place": "UCLC1005, HKBU Moodle",
+      "recorder": "Hazel",
+      "not_captured": "My grade",
+      "certainty": 5
+    },
+    {
+      "id": "REC-014",
+      "title": "Hazel",
+      "type": "text",
+      "file": "media/14.txt",
+      "date": "2026-05-07",
+      "place": "Hazel's Outlook",
+      "recorder": "Hazel",
+      "not_captured": "My gratitude",
+      "certainty": 4
+    },
+    {
+      "id": "REC-015",
+      "title": "⠠⠉⠓⠥⠝⠛⠀⠠⠓⠊⠥⠀⠠⠇⠁⠍",
+      "type": "converter",
+      "file": "media/15.py",
+      "braille": "⠠⠉⠓⠥⠝⠛⠀⠠⠓⠊⠥⠀⠠⠇⠁⠍",
+      "date": "2026-09-17",
+      "place": "Visual Studio Code",
+      "recorder": "Hazel",
+      "not_captured": "My remembrance of that day she taught me about braille code",
+      "certainty": 1
+    },
+    {
+      "id": "REC-016",
+      "title": "鐘曉琳",
+      "type": "video",
+      "file": "media/16.mp4",
+      "date": "2026-09-17",
+      "place": "Hazel's Desk",
+      "recorder": "Hazel",
+      "not_captured": "My speechless, Their third start over",
+      "certainty": 3
+    },
+    {
+      "id": "REC-017",
+      "title": "Chung Hiu Lam",
+      "type": "python",
+      "file": "media/17.py",
+      "date": "2026-09-16",
+      "place": "Visual Studio Code",
+      "recorder": "Hazel",
+      "not_captured": "My excitement, My unrecognisable letters",
+      "certainty": 3
+    },
+    {
+      "id": "REC-018",
+      "title": "S181030",
+      "type": "image",
+      "file": "media/18.png",
+      "date": "2024-12-11",
+      "place": "Jockey Club Ti-I College Student Intranet",
+      "recorder": "Hazel",
+      "not_captured": "My sadness",
+      "certainty": 2
+    },
+    {
+      "id": "REC-019",
+      "title": "Lam同學",
+      "type": "text",
+      "file": "media/19.txt",
+      "date": "2026-09-04",
+      "place": "Niko, Whatsapp",
+      "recorder": "Hazel",
+      "not_captured": "My amusement, His confidence",
+      "certainty": 1
+    },
+    {
+      "id": "REC-020",
+      "title": "曉琳",
+      "type": "image",
+      "file": "media/20.jpeg",
+      "date": "2024-❚❚-❚❚",
+      "place": "Hazel's Folder of People I cherish",
+      "recorder": "Hazel",
+      "not_captured": "My tears, Our appreciation",
+      "certainty": 4
+    }
+  ]
+}
